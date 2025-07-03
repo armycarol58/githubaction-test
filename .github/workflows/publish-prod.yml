@@ -31,4 +31,4 @@ jobs:
 
       - name: Push Docker image to GHCR
         run: |
-          docker push ghcr.io/armycarol58/githubaction-test:prod .
+          docker push ghcr.io/armycarol58/githubaction-test:prod

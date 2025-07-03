@@ -19,7 +19,7 @@ jobs:
           username: ${{ secrets.SSH_USER }}
           key: ${{ secrets.SSH_KEY }}
           script: |
-            cd /home/your-user/your-project-folder
+            cd /Users/groom/Documents/project/CoWing/test_cicd
             git pull origin main
             docker stop proxy-broadcast || true
             docker rm proxy-broadcast || true
