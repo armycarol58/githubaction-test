@@ -1,4 +1,4 @@
-name: test Build and Push to GHCR (Prod)
+name: Build and Push to GHCR (Prod)
 
 on:
   push:
