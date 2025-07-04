@@ -58,10 +58,10 @@ jobs:
       # 실패시 메시지 전송
       - name: Send Discord failure alert
         if: failure()
-        env:
-          ERROR_LOG: ${{ env.ERROR_LOG }}
         run: |
+          LOG=$(cat short_error.log)
+          ESCAPED_LOG=$(echo "$LOG" | sed 's/"/\\"/g' | sed ':a;N;$!ba;s/\n/\\n/g')
           curl -H "Content-Type: application/json" \
           -X POST \
-          -d "$(jq -n --arg msg "❌ CI/CD 실패\n\`\`\`\n$ERROR_LOG\n\`\`\`" '{content: $msg}')" \
+          -d "{\"content\":\"❌ CI/CD 실패\n\`\`\`\n$ESCAPED_LOG\n\`\`\`\"}" \
           ${{ secrets.DISCORD_WEBHOOK_URL }}
