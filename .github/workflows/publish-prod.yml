@@ -48,19 +48,13 @@ jobs:
           -d '{"content":"✅ CI/CD 성공! 🎉"}' \
           ${{ secrets.DISCORD_WEBHOOK_URL }}
 
-      # 실패시 메시지 잡기
-      - name: Read error log summary
-        if: failure()
-        run: |
-          echo 'ERROR_LOG<<EOF' >> $GITHUB_ENV
-          tail -n 10 error.log >> $GITHUB_ENV
-          echo 'EOF' >> $GITHUB_ENV
-
       # 실패시 메시지 전송
       - name: Send Discord failure alert
         if: failure()
+        env:
+          ERROR_LOG: ${{ env.ERROR_LOG }}
         run: |
           curl -H "Content-Type: application/json" \
           -X POST \
-          -d "$(jq -n --arg msg "❌ CI/CD 실패\n\`\`\`\n${ERROR_LOG}\n\`\`\`" '{content: $msg}')" \
+          -d "$(jq -n --arg msg "❌ CI/CD 실패\n\`\`\`\n$ERROR_LOG\n\`\`\`" '{content: $msg}')" \
           ${{ secrets.DISCORD_WEBHOOK_URL }}
