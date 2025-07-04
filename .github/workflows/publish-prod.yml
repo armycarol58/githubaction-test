@@ -36,8 +36,9 @@ jobs:
       # 배포실행
       - name: Run deployment
         id: deploy
+        continue-on-error: true
         run: |
-          ./deploy.sh 2> error.log || echo "FAILED=$?" >> $GITHUB_ENV
+          ./deploy.sh 2> error.log || echo "deploy.sh failed"
 
       # 성공시 메시지 전송
       - name: Send Discord message on Success
@@ -47,6 +48,12 @@ jobs:
           -X POST \
           -d '{"content":"✅ CI/CD 성공! 🎉"}' \
           ${{ secrets.DISCORD_WEBHOOK_URL }}
+
+      # 에러 로그 일부를 별도 파일로 추출
+      - name: Read error log summary
+        if: failure()
+        run: |
+          tail -n 10 error.log > short_error.log
 
       # 실패시 메시지 전송
       - name: Send Discord failure alert
