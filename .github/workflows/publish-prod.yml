@@ -6,8 +6,8 @@ on:
       - prod
 
 jobs:
-  build-and-push:
-    name: Build Docker image and push to GHCR
+  build-and-deploy:
+    name: Build Docker image, push to GHCR, and deploy to EC2
     runs-on: ubuntu-latest
 
     permissions:
@@ -33,29 +33,32 @@ jobs:
         run: |
           docker push ghcr.io/armycarol58/githubaction-test:prod
 
-      # 배포실행
-      - name: Run deployment
-        id: deploy
-        continue-on-error: true
-        run: |
-          ./deploy.sh 2> error.log || echo "deploy.sh failed"
+      - name: Connect to EC2 and Deploy
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.EC2_SSH_HOST }}
+          username: ${{ secrets.EC2_SSH_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: 22
+          script: |
+            docker stop proxy-broadcast || true
+            docker rm proxy-broadcast || true
+            docker pull ghcr.io/armycarol58/githubaction-test:prod
+            docker run -d -p 8081:8081 --name proxy-broadcast ghcr.io/armycarol58/githubaction-test:prod
 
-      # 성공시 메시지 전송
       - name: Send Discord message on Success
         if: success()
         run: |
           curl -H "Content-Type: application/json" \
           -X POST \
-          -d '{"content":"✅ CI/CD 성공! 🎉"}' \
+          -d '{"content":"✅ Prod 배포 성공! 🎉"}' \
           ${{ secrets.DISCORD_WEBHOOK_URL }}
 
-      # 에러 로그 일부를 별도 파일로 추출
       - name: Read error log summary
         if: failure()
         run: |
-          tail -n 10 error.log > short_error.log
+          echo "EC2 배포 중 오류가 발생했습니다." > short_error.log
 
-      # 실패시 메시지 전송
       - name: Send Discord failure alert
         if: failure()
         run: |
@@ -63,5 +66,5 @@ jobs:
           ESCAPED_LOG=$(echo "$LOG" | sed 's/"/\\"/g' | sed ':a;N;$!ba;s/\n/\\n/g')
           curl -H "Content-Type: application/json" \
           -X POST \
-          -d "{\"content\":\"❌ CI/CD 실패\n\`\`\`\n$ESCAPED_LOG\n\`\`\`\"}" \
+          -d "{\"content\":\"❌ Prod 배포 실패\n\`\`\`\n$ESCAPED_LOG\n\`\`\`\"}" \
           ${{ secrets.DISCORD_WEBHOOK_URL }}

@@ -5,50 +5,51 @@ on:
 
 jobs:
   deploy:
-    name: Build & Deploy
+    name: Build & Deploy to EC2
     runs-on: ubuntu-latest
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Connect to Remote Server and Deploy
+      - name: Connect to EC2 and Deploy
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.SSH_HOST }}
-          username: ${{ secrets.SSH_USER }}
-          key: ${{ secrets.SSH_KEY }}
+          host: ${{ secrets.EC2_SSH_HOST }}
+          username: ${{ secrets.EC2_SSH_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: 22
           script: |
-            cd /Users/groom/Documents/project/CoWing/test_cicd
+            cd ~/project/CoWing/test_cicd
             git pull origin main
             docker stop proxy-broadcast || true
             docker rm proxy-broadcast || true
             docker build -t proxy-broadcast .
             docker run -d -p 8081:8081 --name proxy-broadcast proxy-broadcast
 
-      # 배포실행
       - name: Run deployment
         id: deploy
         continue-on-error: true
         run: |
           ./deploy.sh 2> error.log || echo "deploy.sh failed"
 
-      # 성공시 메시지 전송
       - name: Send Discord message on Success
         if: success()
         run: |
           curl -H "Content-Type: application/json" \
           -X POST \
-          -d '{"content":"✅ CI/CD 성공! 🎉"}' \
+          -d '{"content":"✅ EC2에 CI/CD 성공! 🎉"}' \
           ${{ secrets.DISCORD_WEBHOOK_URL }}
 
-      # 에러 로그 일부를 별도 파일로 추출
-      - name: Read error log summary
+      - name: Read error log summary (if exists)
         if: failure()
         run: |
-          tail -n 10 error.log > short_error.log
+          if [ -f error.log ]; then
+            tail -n 10 error.log > short_error.log
+          else
+            echo "🚫 error.log 파일이 없습니다." > short_error.log
+          fi
 
-      # 실패시 메시지 전송
       - name: Send Discord failure alert
         if: failure()
         run: |
@@ -56,5 +57,5 @@ jobs:
           ESCAPED_LOG=$(echo "$LOG" | sed 's/"/\\"/g' | sed ':a;N;$!ba;s/\n/\\n/g')
           curl -H "Content-Type: application/json" \
           -X POST \
-          -d "{\"content\":\"❌ CI/CD 실패\n\`\`\`\n$ESCAPED_LOG\n\`\`\`\"}" \
+          -d "{\"content\":\"❌ EC2 CI/CD 실패\n\`\`\`\n$ESCAPED_LOG\n\`\`\`\"}" \
           ${{ secrets.DISCORD_WEBHOOK_URL }}
