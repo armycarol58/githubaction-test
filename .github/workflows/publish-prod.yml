@@ -5,6 +5,9 @@ on:
     branches:
       - prod
 
+env:
+  GHCR_IMAGE: ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}
+
 jobs:
   build-and-deploy:
     name: Build Docker image, push to GHCR, and deploy to EC2
@@ -27,11 +30,11 @@ jobs:
 
       - name: Build Docker image
         run: |
-          docker build -t ghcr.io/armycarol58/githubaction-test:prod .
+          docker build -t $GHCR_IMAGE:prod .
 
       - name: Push Docker image to GHCR
         run: |
-          docker push ghcr.io/armycarol58/githubaction-test:prod
+          docker push $GHCR_IMAGE:prod
 
       - name: Connect to EC2 and Deploy
         uses: appleboy/ssh-action@v1.0.3
@@ -43,8 +46,8 @@ jobs:
           script: |
             docker stop proxy-broadcast || true
             docker rm proxy-broadcast || true
-            docker pull ghcr.io/armycarol58/githubaction-test:prod
-            docker run -d -p 8081:8081 --name proxy-broadcast ghcr.io/armycarol58/githubaction-test:prod
+            docker pull $GHCR_IMAGE:prod
+            docker run -d -p 8081:8081 --name proxy-broadcast $GHCR_IMAGE:prod
 
       - name: Send Discord message on Success
         if: success()

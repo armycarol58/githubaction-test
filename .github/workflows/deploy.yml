@@ -3,6 +3,9 @@ on:
     branches:
       - main
 
+env:
+  GHCR_IMAGE: ghcr.io/${{ github.repository_owner }}/${{ github.event.repository.name }}
+
 jobs:
   deploy:
     name: Build & Deploy to EC2
