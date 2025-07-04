@@ -32,3 +32,31 @@ jobs:
       - name: Push Docker image to GHCR
         run: |
           docker push ghcr.io/armycarol58/githubaction-test:prod
+
+      - name: Run risky deployment
+        id: deploy
+        run: |
+          ./deploy.sh 2> error.log || echo "FAILED=$?" >> $GITHUB_ENV
+
+      - name: Send Discord message on Success
+        if: success()
+        run: |
+          curl -H "Content-Type: application/json" \
+          -X POST \
+          -d '{"content":"✅ CI/CD 성공! 🎉"}' \
+          ${{ secrets.DISCORD_WEBHOOK_URL }}
+
+      - name: Read error log summary
+        if: failure()
+        run: |
+          echo 'ERROR_LOG<<EOF' >> $GITHUB_ENV
+          tail -n 10 error.log >> $GITHUB_ENV
+          echo 'EOF' >> $GITHUB_ENV
+
+      - name: Send Discord failure alert
+        if: failure()
+        run: |
+          curl -H "Content-Type: application/json" \
+          -X POST \
+          -d "$(jq -n --arg msg "❌ CI/CD 실패\n\`\`\`\n${ERROR_LOG}\n\`\`\`" '{content: $msg}')" \
+          ${{ secrets.DISCORD_WEBHOOK_URL }}
