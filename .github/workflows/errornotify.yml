@@ -23,13 +23,13 @@ jobs:
 
       # 에러 로그 요약 생성
       - name: Extract short error log
-        if: failure()
+        if: steps.run-error.outcome == 'failure'
         run: |
           tail -n 10 error.log > short_error.log
 
       # 디스코드로 실패 메시지 전송
       - name: Send Discord failure alert
-        if: failure()
+        if: steps.run-error.outcome == 'failure'
         run: |
           LOG=$(cat short_error.log)
           ESCAPED_LOG=$(echo "$LOG" | sed 's/"/\\"/g' | sed ':a;N;$!ba;s/\n/\\n/g')
