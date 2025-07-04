@@ -1,0 +1,39 @@
+name: Test Error Logging and Discord Notification
+
+on:
+  workflow_dispatch:
+
+jobs:
+  test-error:
+    name: Simulate Error and Send Log
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 실패 유도 + 로그 저장
+      - name: Run faulty command and capture error
+        id: run-error
+        continue-on-error: true
+        run: |
+          echo "⚠️ 실패 유도 테스트 시작"
+          not-a-real-command 2> error.log
+          echo "✅ 실패 후에도 워크플로우는 계속 진행됩니다."
+
+      # 에러 로그 요약 생성
+      - name: Extract short error log
+        if: failure()
+        run: |
+          tail -n 10 error.log > short_error.log
+
+      # 디스코드로 실패 메시지 전송
+      - name: Send Discord failure alert
+        if: failure()
+        run: |
+          LOG=$(cat short_error.log)
+          ESCAPED_LOG=$(echo "$LOG" | sed 's/"/\\"/g' | sed ':a;N;$!ba;s/\n/\\n/g')
+          curl -H "Content-Type: application/json" \
+            -X POST \
+            -d "{\"content\":\"❌ CI/CD 실패\n\`\`\`\n$ESCAPED_LOG\n\`\`\`\"}" \
+            ${{ secrets.DISCORD_WEBHOOK_URL }}
