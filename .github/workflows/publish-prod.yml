@@ -33,11 +33,13 @@ jobs:
         run: |
           docker push ghcr.io/armycarol58/githubaction-test:prod
 
-      - name: Run risky deployment
+      # 배포실행
+      - name: Run deployment
         id: deploy
         run: |
           ./deploy.sh 2> error.log || echo "FAILED=$?" >> $GITHUB_ENV
 
+      # 성공시 메시지 전송
       - name: Send Discord message on Success
         if: success()
         run: |
@@ -46,6 +48,7 @@ jobs:
           -d '{"content":"✅ CI/CD 성공! 🎉"}' \
           ${{ secrets.DISCORD_WEBHOOK_URL }}
 
+      # 실패시 메시지 잡기
       - name: Read error log summary
         if: failure()
         run: |
@@ -53,6 +56,7 @@ jobs:
           tail -n 10 error.log >> $GITHUB_ENV
           echo 'EOF' >> $GITHUB_ENV
 
+      # 실패시 메시지 전송
       - name: Send Discord failure alert
         if: failure()
         run: |
