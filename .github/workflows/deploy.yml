@@ -77,3 +77,6 @@ jobs:
           -X POST \
           -d "{\"content\":\"❌ Front-Service Container 이미지 빌드/푸시 실패\n\`\`\`\n$ESCAPED_LOG\n\`\`\`\"}" \
           ${{ secrets.DISCORD_WEBHOOK_URL }}
+
+      - name: Output GitHub context
+        run: echo "${{ toJSON(github) }}"
