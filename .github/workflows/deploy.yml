@@ -66,7 +66,12 @@ jobs:
         run: |
           {
             echo 'ERROR_LOG<<EOF'
-            cat $GITHUB_STEP_SUMMARY
+            echo "Step outcome: ${{ steps.docker_build.outcome }}"
+            echo "Build logs:"
+            echo "${{ toJSON(steps.docker_build.outputs) }}"
+            echo "Runner diagnostics:"
+            docker buildx version
+            docker info
             echo 'EOF'
           } >> $GITHUB_ENV
 
