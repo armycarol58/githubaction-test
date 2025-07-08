@@ -60,7 +60,7 @@ jobs:
         id: timestamp
         run: echo "timestamp=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> $GITHUB_OUTPUT
 
-      # 작업 로그를 캡처하는 step 추가
+      # 작업 로그를 캡처하는 step 추가1
       - name: Capture job logs
         if: failure()
         id: logs
