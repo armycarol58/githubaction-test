@@ -82,7 +82,7 @@ jobs:
           COLOR=$( [ "$STATUS" == "success" ] && echo "3066993" || echo "15158332" )
           EMOJI=$( [ "$STATUS" == "success" ] && echo "🚀" || echo "❌" )
           
-          # 실제 발생한 에러 메시지 사용
+
           ERROR_SECTION=""
           if [ "$STATUS" != "success" ]; then
             ERROR_INFO="Build Status: $STATUS\n"
