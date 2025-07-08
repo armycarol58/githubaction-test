@@ -68,6 +68,9 @@ jobs:
           COLOR=$( [ "$STATUS" == "success" ] && echo "3066993" || echo "15158332" )
           EMOJI=$( [ "$STATUS" == "success" ] && echo "🚀" || echo "❌" )
           
+          # 스텝 출력 캡처
+          ERROR_LOGS=$(cat $GITHUB_STEP_SUMMARY 2>/dev/null || echo "No detailed logs available")
+          
           curl -H "Content-Type: application/json" -X POST ${{ secrets.DISCORD_WEBHOOK_URL }} -d '{
             "embeds": [{
               "title": "'"$EMOJI"' 빌드 '"$STATUS"'",
@@ -96,8 +99,11 @@ jobs:
                 {
                   "name": "Image",
                   "value": "${{ env.REGISTRY }}/${{ steps.image_name.outputs.image_name }}:${{ steps.version.outputs.version }}"
+                },
+                {
+                  "name": "Detailed Logs",
+                  "value": "```\n'"${ERROR_LOGS:0:1000}"'\n```"
                 }
-              ],
-              "timestamp": "${{ steps.timestamp.outputs.timestamp }}"
+              ]
             }]
           }'
