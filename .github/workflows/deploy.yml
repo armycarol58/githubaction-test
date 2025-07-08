@@ -51,8 +51,8 @@ jobs:
         # continue-on-error: true
         uses: docker/build-push-action@v5
         with:
-          # context: .
-          context: ./nonexistent_dockerfile
+          context: .
+          file: ./nonexistent_dockerfile
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ steps.image_name.outputs.image_name }}:${{ steps.version.outputs.version }}
@@ -60,42 +60,28 @@ jobs:
 
 
       # 디스코드 알람 전송
-      - name: Capture error
+      - name: Capture Build Error
         if: failure()
+        id: error_capture
         run: |
-          # 실제 에러 메시지를 환경 변수로 저장
-          echo "build_error<<EOF" >> $GITHUB_ENV
-          echo "${{ toJSON(steps.docker_build.outcome) }}" >> $GITHUB_ENV
-          echo "${{ toJSON(steps.docker_build.outputs.*) }}" >> $GITHUB_ENV
-          echo "${{ toJSON(steps.docker_build.outputs.stderr) }}" >> $GITHUB_ENV
-          echo "EOF" >> $GITHUB_ENV
-
-          # 에러 로그를 파일로도 저장
-          echo "::group::Docker Build Error"
-          echo "Outcome: ${{ steps.docker_build.outcome }}"
-          echo "Outputs: ${{ toJSON(steps.docker_build.outputs) }}"
-          echo "::endgroup::"
+          {
+            echo 'ERROR_LOG<<EOF'
+            cat $GITHUB_STEP_SUMMARY
+            echo 'EOF'
+          } >> $GITHUB_ENV
 
       - name: Send Discord Notification
         if: always()
-        shell: bash
         run: |
           STATUS="${{ job.status }}"
           COLOR=$( [ "$STATUS" == "success" ] && echo "3066993" || echo "15158332" )
           EMOJI=$( [ "$STATUS" == "success" ] && echo "🚀" || echo "❌" )
           
-          # 에러 정보 수집
+          # 실제 발생한 에러 메시지 사용
           ERROR_SECTION=""
           if [ "$STATUS" != "success" ]; then
-            # 직접 실행하여 에러 메시지 캡처
-            ERROR_OUTPUT=$(docker buildx build --file ./nonexistent_dockerfile . 2>&1 || true)
-            
             ERROR_INFO="Build Status: $STATUS\n"
-            if [ "${{ steps.docker_build.outcome }}" != "success" ]; then
-              ERROR_INFO+="Docker Build/Push Failed\n"
-              ERROR_INFO+="Error Details:\n${ERROR_OUTPUT}\n"
-              ERROR_INFO+="Step Outputs:\n${{ toJSON(steps.docker_build.outputs) }}\n"
-            fi
+            ERROR_INFO+="${{ env.ERROR_LOG }}"
             
             ERROR_SECTION=', {
               "name": "Error Details",
