@@ -34,10 +34,12 @@ jobs:
           DATE_VERSION="$(date +'%Y.%m.%d')"
           SHORT_SHA="$(echo $GITHUB_SHA | cut -c1-7)"
           VERSION="${DATE_VERSION}-${SHORT_SHA}"
+          echo "Generated version: $VERSION"
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
-      - name: Log in to GHCR
+      - name: Log in to the Container registry
         id: docker_login
+        # continue-on-error: true
         uses: docker/login-action@v3
         with:
           registry: ${{ env.REGISTRY }}
@@ -46,28 +48,24 @@ jobs:
 
       - name: Build and push Docker image
         id: docker_build
+        # continue-on-error: true
         uses: docker/build-push-action@v5
         with:
           context: .
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ steps.image_name.outputs.image_name }}:${{ steps.version.outputs.version }}
-            ${{ env.REGISTRY }}/${{ steps.image_name.outputs.image_name }}:latest
+            ${{ env.REGISTRY }}/${{ steps.image_name.outputs.image_name }}:latest 
 
-      # 실패 시 에러 로그 캡처
-      - name: Capture Docker build error log
+
+      # 디스코드 알람 전송
+      - name: Capture Docker build error log (on failure)
         if: failure()
-        id: error_capture
         run: |
           echo "⚠️ Rebuilding image to capture error log..."
           docker build --file Dockerfile . > raw_error.log 2>&1 || true
-          echo '--- docker build error log start ---'
-          cat raw_error.log
-          echo '--- docker build error log end ---'
-          ESCAPED_LOG=$(head -n 50 raw_error.log | sed 's/"/\\"/g' | sed ':a;N;$!ba;s/\n/\\n/g')
-          echo "error_message=$ESCAPED_LOG" >> $GITHUB_OUTPUT
+          echo '::notice file=raw_error.log::Captured error log.'
 
-      # 디스코드 메시지 전송
       - name: Send Discord Notification
         if: always()
         shell: bash
@@ -76,20 +74,18 @@ jobs:
           COLOR=$( [ "$STATUS" == "success" ] && echo "3066993" || echo "15158332" )
           EMOJI=$( [ "$STATUS" == "success" ] && echo "🚀" || echo "❌" )
 
-          # 에러 섹션 조립
           ERROR_SECTION=""
           if [ "$STATUS" != "success" ]; then
             ERROR_INFO="Build Status: $STATUS\n"
             if [ "${{ steps.docker_login.outcome }}" != "success" ]; then
               ERROR_INFO+="Docker Login Failed\n"
-              ERROR_INFO+="Registry: ${{ env.REGISTRY }}\n"
-              ERROR_INFO+="Username: ${{ github.actor }}\n"
             fi
             if [ "${{ steps.docker_build.outcome }}" != "success" ]; then
               ERROR_INFO+="Docker Build/Push Failed\n"
             fi
-            if [ -n "${{ steps.error_capture.outputs.error_message }}" ]; then
-              ERROR_INFO+="\n---\n${{ steps.error_capture.outputs.error_message }}"
+            if [ -f raw_error.log ]; then
+              ERROR_CONTENT=$(head -n 50 raw_error.log | sed 's/"/\\"/g' | sed ':a;N;$!ba;s/\n/\\n/g')
+              ERROR_INFO+="\n---\n$ERROR_CONTENT"
             fi
 
             ERROR_SECTION=', {
@@ -98,8 +94,7 @@ jobs:
             }'
           fi
 
-          # Discord 전송
-          curl -H "Content-Type: application/json" -X POST "${{ env.DISCORD_WEBHOOK_URL }}" -d '{
+          curl -H "Content-Type: application/json" -X POST "${{ secrets.DISCORD_WEBHOOK_URL }}" -d '{
             "embeds": [{
               "title": "'"$EMOJI"' 빌드 '"$STATUS"'",
               "color": '"$COLOR"',
