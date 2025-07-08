@@ -53,30 +53,59 @@ jobs:
           tags: |
             ${{ env.REGISTRY }}/${{ steps.image_name.outputs.image_name }}:${{ steps.version.outputs.version }}
             ${{ env.REGISTRY }}/${{ steps.image_name.outputs.image_name }}:latest 
+            
+      # URL 파싱하여 ID와 TOKEN 추출
+      - name: Extract Discord Webhook Info
+        id: discord
+        run: |
+          WEBHOOK_ID=$(echo $DISCORD_WEBHOOK_URL | cut -d'/' -f6)
+          WEBHOOK_TOKEN=$(echo $DISCORD_WEBHOOK_URL | cut -d'/' -f7)
+          echo "webhook_id=$WEBHOOK_ID" >> $GITHUB_OUTPUT
+          echo "webhook_token=$WEBHOOK_TOKEN" >> $GITHUB_OUTPUT
 
-      #디스코드 메시지 전송 
-      - name: Send Discord message on Success
+      # Discord로 성공 메시지 전송
+      - name: Discord notification - Success
         if: success()
-        run: |
-          curl -H "Content-Type: application/json" \
-          -X POST \
-          -d '{"content":"✅ 🎉🎉Front-Service Container 이미지 빌드/푸시 성공! 🎉🎉"}' \
-          ${{ secrets.DISCORD_WEBHOOK_URL }}
-
-      - name: Read error log summary
+        uses: appleboy/discord-action@master
+        with:
+          webhook_id: ${{ secrets.DISCORD_WEBHOOK_ID }}
+          webhook_token: ${{ secrets.DISCORD_WEBHOOK_TOKEN }}
+          color: "#43b581"
+          username: "GitHub Actions Bot"
+          message: |
+            🚀 **빌드 성공!**
+            
+            **Repository:** ${{ github.repository }}
+            **Branch:** ${{ github.ref_name }}
+            **Commit:** ${{ github.sha }}
+            **Author:** ${{ github.actor }}
+            **Build Time:** ${{ steps.timestamp.outputs.timestamp }}
+            
+            **Image:** `${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest`
+            
+            **Commit Message:**
+            ```
+            ${{ github.event.head_commit.message }}
+            ```
+            
+      # Discord로 실패 메시지 전송
+      - name: Discord notification - Failure
         if: failure()
-        run: |
-          echo "도커 이미지 빌드 또는 푸시 중 오류 발생" > short_error.log
-
-      - name: Send Discord failure alert
-        if: failure()
-        run: |
-          LOG=$(cat short_error.log)
-          ESCAPED_LOG=$(echo "$LOG" | sed 's/"/\\"/g' | sed ':a;N;$!ba;s/\n/\\n/g')
-          curl -H "Content-Type: application/json" \
-          -X POST \
-          -d "{\"content\":\"❌ Front-Service Container 이미지 빌드/푸시 실패\n\`\`\`\n$ESCAPED_LOG\n\`\`\`\"}" \
-          ${{ secrets.DISCORD_WEBHOOK_URL }}
-
-      - name: Output GitHub context
-        run: echo "${{ toJSON(github) }}"
+        uses: appleboy/discord-action@master
+        with:
+          webhook_id: ${{ secrets.DISCORD_WEBHOOK_ID }}
+          webhook_token: ${{ secrets.DISCORD_WEBHOOK_TOKEN }}
+          color: "#ff0000"
+          username: "GitHub Actions Bot"
+          message: |
+            ❌ **빌드 실패!**
+            
+            **Repository:** ${{ github.repository }}
+            **Branch:** ${{ github.ref_name }}
+            **Commit:** ${{ github.sha }}
+            **Author:** ${{ github.actor }}
+            **Build Time:** ${{ steps.timestamp.outputs.timestamp }}
+            
+            **Error Details:**
+            작업이 실패했습니다. GitHub Actions 로그를 확인해주세요.
+            ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
