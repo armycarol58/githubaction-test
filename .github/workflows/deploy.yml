@@ -61,14 +61,10 @@ jobs:
         run: echo "timestamp=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> $GITHUB_OUTPUT
 
       # 작업 로그를 캡처하는 step 추가1
-      - name: Capture job logs
-        if: failure()
-        id: logs
-        run: |
-          # 에러 로그를 파일로 저장
-          echo "::group::Error Logs" >> error_logs.txt
-          echo "${{ toJSON(job.status) }}" >> error_logs.txt
-          echo "::endgroup::" >> error_logs.txt
+
+
+
+#또는 steps의 출력을 직접 캡처하는 방식:
 
       - name: Send Discord Notification
         if: always()
@@ -77,11 +73,8 @@ jobs:
           COLOR=$( [ "$STATUS" == "success" ] && echo "3066993" || echo "15158332" )
           EMOJI=$( [ "$STATUS" == "success" ] && echo "🚀" || echo "❌" )
           
-          # 에러 발생 시 로그 포함
-          ERROR_DETAILS=""
-          if [ "$STATUS" == "failure" ]; then
-            ERROR_DETAILS="$(cat error_logs.txt || echo 'No error logs available')"
-          fi
+          # 스텝 출력 캡처
+          ERROR_LOGS=$(cat $GITHUB_STEP_SUMMARY 2>/dev/null || echo "No detailed logs available")
           
           curl -H "Content-Type: application/json" -X POST ${{ secrets.DISCORD_WEBHOOK_URL }} -d '{
             "embeds": [{
@@ -111,11 +104,11 @@ jobs:
                 {
                   "name": "Image",
                   "value": "${{ env.REGISTRY }}/${{ steps.image_name.outputs.image_name }}:${{ steps.version.outputs.version }}"
-                }'"$([ "$STATUS" == "failure" ] && echo ',{
-                  "name": "Error Details",
-                  "value": "```\n'"${ERROR_DETAILS}"'\n```"
-                }')"'
-              ],
-              "timestamp": "'"$(date -u +"%Y-%m-%dT%H:%M:%SZ")"'"
+                },
+                {
+                  "name": "Detailed Logs",
+                  "value": "```\n'"${ERROR_LOGS:0:1000}"'\n```"
+                }
+              ]
             }]
           }'
