@@ -52,6 +52,7 @@ jobs:
         uses: docker/build-push-action@v5
         with:
           context: .
+          file: ./nonexistent_dockerfile
           push: true
           tags: |
             ${{ env.REGISTRY }}/${{ steps.image_name.outputs.image_name }}:${{ steps.version.outputs.version }}
