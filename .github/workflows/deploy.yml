@@ -59,15 +59,6 @@ jobs:
 
 
       # 디스코드 알람 전송
-      - name: Capture Docker build error log (on failure)
-        if: failure()
-        id: error_capture
-        run: |
-          echo "⚠️ Re-running docker build to capture error log..."
-          docker build --file Dockerfile . 2> error.log || true
-          ESCAPED_LOG=$(sed 's/"/\\"/g' error.log | sed ':a;N;$!ba;s/\n/\\n/g')
-          echo "error_message=$ESCAPED_LOG" >> $GITHUB_OUTPUT
-
       - name: Send Discord Notification
         if: always()
         shell: bash
@@ -75,7 +66,8 @@ jobs:
           STATUS="${{ job.status }}"
           COLOR=$( [ "$STATUS" == "success" ] && echo "3066993" || echo "15158332" )
           EMOJI=$( [ "$STATUS" == "success" ] && echo "🚀" || echo "❌" )
-
+          
+          # 에러 정보 수집
           ERROR_SECTION=""
           if [ "$STATUS" != "success" ]; then
             ERROR_INFO="Build Status: $STATUS\n"
@@ -87,16 +79,14 @@ jobs:
             if [ "${{ steps.docker_build.outcome }}" != "success" ]; then
               ERROR_INFO+="Docker Build/Push Failed\n"
             fi
-            if [ -n "${{ steps.error_capture.outputs.error_message }}" ]; then
-              ERROR_INFO+="\n---\n${{ steps.error_capture.outputs.error_message }}"
-            fi
-
+            
             ERROR_SECTION=', {
               "name": "Error Details",
               "value": "```\n'"${ERROR_INFO}"'\n```"
             }'
           fi
-
+          
+          # Discord 메시지 전송
           curl -H "Content-Type: application/json" -X POST "${{ secrets.DISCORD_WEBHOOK_URL }}" -d '{
             "embeds": [{
               "title": "'"$EMOJI"' 빌드 '"$STATUS"'",
@@ -131,95 +121,3 @@ jobs:
               "timestamp": "'"$(date -u +"%Y-%m-%dT%H:%M:%SZ")"'"
             }]
           }'
-
-      - name: Send Discord Notification
-        if: always()
-        shell: bash
-        run: |
-          # Webhook URL 확인
-          if [ -z "${{ secrets.DISCORD_WEBHOOK_URL }}" ]; then
-            echo "Error: DISCORD_WEBHOOK_URL is not set!"
-            exit 1
-          fi
-          
-          echo "Discord Webhook URL exists and is set"
-          
-          STATUS="${{ job.status }}"
-          COLOR=$( [ "$STATUS" == "success" ] && echo "3066993" || echo "15158332" )
-          EMOJI=$( [ "$STATUS" == "success" ] && echo "🚀" || echo "❌" )
-
-          ERROR_SECTION=""
-          if [ "$STATUS" != "success" ]; then
-            ERROR_INFO="Build Status: $STATUS\n"
-            if [ "${{ steps.docker_login.outcome }}" != "success" ]; then
-              ERROR_INFO+="Docker Login Failed\n"
-              ERROR_INFO+="Registry: ${{ env.REGISTRY }}\n"
-              ERROR_INFO+="Username: ${{ github.actor }}\n"
-            fi
-            if [ "${{ steps.docker_build.outcome }}" != "success" ]; then
-              ERROR_INFO+="Docker Build/Push Failed\n"
-            fi
-            if [ -n "${{ steps.error_capture.outputs.error_message }}" ]; then
-              ERROR_INFO+="\n---\n${{ steps.error_capture.outputs.error_message }}"
-            fi
-
-            ERROR_SECTION=', {
-              "name": "Error Details",
-              "value": "```\n'"${ERROR_INFO}"'\n```"
-            }'
-          fi
-
-          # Create payload and save to file
-          PAYLOAD='{
-            "embeds": [{
-              "title": "'"$EMOJI"' 빌드 '"$STATUS"'",
-              "color": '"$COLOR"',
-              "fields": [
-                {
-                  "name": "Repository",
-                  "value": "${{ github.repository }}",
-                  "inline": true
-                },
-                {
-                  "name": "Branch",
-                  "value": "${{ github.ref_name }}",
-                  "inline": true
-                },
-                {
-                  "name": "Commit",
-                  "value": "${{ github.sha }}",
-                  "inline": true
-                },
-                {
-                  "name": "Author",
-                  "value": "${{ github.actor }}",
-                  "inline": true
-                },
-                {
-                  "name": "Image",
-                  "value": "${{ env.REGISTRY }}/${{ steps.image_name.outputs.image_name }}:${{ steps.version.outputs.version }}"
-                }
-                '"$ERROR_SECTION"'
-              ],
-              "timestamp": "'"$(date -u +"%Y-%m-%dT%H:%M:%SZ")"'"
-            }]
-          }'
-
-          echo "Sending payload to Discord..."
-          echo "Payload preview:"
-          echo "$PAYLOAD" | head -n 30
-
-          # Send with verbose output
-          RESPONSE=$(curl -v -H "Content-Type: application/json" \
-            -X POST \
-            "${{ secrets.DISCORD_WEBHOOK_URL }}" \
-            -d "$PAYLOAD" 2>&1)
-
-          echo "Discord API Response:"
-          echo "$RESPONSE"
-
-          # Check if curl was successful
-          if [ $? -ne 0 ]; then
-            echo "Failed to send Discord notification"
-            exit 1
-          fi
