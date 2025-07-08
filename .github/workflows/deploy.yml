@@ -58,6 +58,24 @@ jobs:
             ${{ env.REGISTRY }}/${{ steps.image_name.outputs.image_name }}:latest 
 
 
+      - name: Debug Discord Payload
+        if: always()
+        run: |
+          echo "Payload to Discord:"
+          echo '{
+            "embeds": [{
+              "title": "테스트 메시지",
+              "color": 3066993,
+              "fields": [
+                {
+                  "name": "Repository",
+                  "value": "'"${{ github.repository }}"'",
+                  "inline": true
+                }
+              ]
+            }]
+          }'
+
       # 디스코드 알람 전송
       - name: Capture Docker build error log (on failure)
         if: failure()
