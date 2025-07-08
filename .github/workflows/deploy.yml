@@ -59,6 +59,16 @@ jobs:
 
 
       # 디스코드 알람 전송
+      - name: Capture Docker build error log (on failure)
+        if: failure()
+        id: error_capture
+        run: |
+          echo "Rebuilding image to capture error log..."
+          docker build --file Dockerfile . > raw_error.log 2>&1 || true
+          ESCAPED_LOG=$(head -n 50 raw_error.log | sed 's/"/\\"/g' | sed ':a;N;$!ba;s/\n/\\n/g')
+          echo "error_message=$ESCAPED_LOG" >> $GITHUB_OUTPUT
+
+      # 📩 디스코드 알림
       - name: Send Discord Notification
         if: always()
         shell: bash
@@ -66,8 +76,7 @@ jobs:
           STATUS="${{ job.status }}"
           COLOR=$( [ "$STATUS" == "success" ] && echo "3066993" || echo "15158332" )
           EMOJI=$( [ "$STATUS" == "success" ] && echo "🚀" || echo "❌" )
-          
-          # 에러 정보 수집
+
           ERROR_SECTION=""
           if [ "$STATUS" != "success" ]; then
             ERROR_INFO="Build Status: $STATUS\n"
@@ -79,14 +88,16 @@ jobs:
             if [ "${{ steps.docker_build.outcome }}" != "success" ]; then
               ERROR_INFO+="Docker Build/Push Failed\n"
             fi
-            
+            if [ -n "${{ steps.error_capture.outputs.error_message }}" ]; then
+              ERROR_INFO+="\n---\n${{ steps.error_capture.outputs.error_message }}"
+            fi
+
             ERROR_SECTION=', {
               "name": "Error Details",
               "value": "```\n'"${ERROR_INFO}"'\n```"
             }'
           fi
-          
-          # Discord 메시지 전송
+
           curl -H "Content-Type: application/json" -X POST "${{ secrets.DISCORD_WEBHOOK_URL }}" -d '{
             "embeds": [{
               "title": "'"$EMOJI"' 빌드 '"$STATUS"'",
