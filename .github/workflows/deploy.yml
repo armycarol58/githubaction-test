@@ -62,19 +62,21 @@ jobs:
 
       # 작업 로그를 캡처하는 step 추가1
 
-
-
-      - name: Set error log
+      - name: Capture Error
         if: failure()
-        id: error_log
         run: |
-          ERROR_LOG=$(cat $GITHUB_STEP_SUMMARY 2>/dev/null || echo "No logs available")
-          echo "error_message<<EOF" >> $GITHUB_ENV
-          echo "$ERROR_LOG" >> $GITHUB_ENV
+          echo "ERROR_LOG<<EOF" >> $GITHUB_ENV
+          echo "Failed step: ${{ github.job }}" >> $GITHUB_ENV
+          echo "Error: ${{ job.status }}" >> $GITHUB_ENV
+          echo "Details: Password required for GHCR login" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
+
+
 
       - name: Send Discord Notification
         if: always()
+        env:
+          ERROR_DETAILS: ${{ env.ERROR_LOG }}
         run: |
           STATUS="${{ job.status }}"
           COLOR=$( [ "$STATUS" == "success" ] && echo "3066993" || echo "15158332" )
