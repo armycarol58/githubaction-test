@@ -55,40 +55,47 @@ jobs:
             ${{ env.REGISTRY }}/${{ steps.image_name.outputs.image_name }}:${{ steps.version.outputs.version }}
             ${{ env.REGISTRY }}/${{ steps.image_name.outputs.image_name }}:latest 
             
-      # timestamp step 추가
-      - name: Get timestamp
-        id: timestamp
-        run: echo "timestamp=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> $GITHUB_OUTPUT
+      # Docker 로그인 step에 id 추가
+      - name: Log in to the Container registry
+        id: docker_login
+        continue-on-error: true  # 에러가 나도 계속 진행
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_PAT }}
 
-      # 작업 로그를 캡처하는 step 추가1
-
-      - name: Capture Error
+      # 로그 수집 step
+      - name: Collect Logs
+        id: collect_logs
         if: failure()
         run: |
-          echo "ERROR_LOG<<EOF" >> $GITHUB_ENV
-          echo "Failed step: ${{ github.job }}" >> $GITHUB_ENV
-          echo "Error: ${{ job.status }}" >> $GITHUB_ENV
-          echo "Details: Password required for GHCR login" >> $GITHUB_ENV
+          echo "### Error Details" > error_logs.txt
+          echo "Step: ${{ steps.docker_login.outcome }}" >> error_logs.txt
+          echo "Error occurred during Docker login" >> error_logs.txt
+          echo "Registry: ${{ env.REGISTRY }}" >> error_logs.txt
+          echo "Username: ${{ github.actor }}" >> error_logs.txt
+          
+          # 에러 로그를 환경 변수로 저장
+          ERROR_LOGS=$(cat error_logs.txt)
+          echo "error_logs<<EOF" >> $GITHUB_ENV
+          echo "$ERROR_LOGS" >> $GITHUB_ENV
           echo "EOF" >> $GITHUB_ENV
-
-
 
       - name: Send Discord Notification
         if: always()
-        env:
-          ERROR_DETAILS: ${{ env.ERROR_LOG }}
         run: |
           STATUS="${{ job.status }}"
           COLOR=$( [ "$STATUS" == "success" ] && echo "3066993" || echo "15158332" )
           EMOJI=$( [ "$STATUS" == "success" ] && echo "🚀" || echo "❌" )
           
-          # 에러 메시지 준비
-          ERROR_CONTENT=""
+          # 에러 로그 준비
+          ERROR_SECTION=""
           if [ "$STATUS" == "failure" ]; then
-            ERROR_CONTENT=", {
-              \"name\": \"Error Details\",
-              \"value\": \"```\n${{ env.error_message }}\n```\"
-            }"
+            ERROR_SECTION=', {
+              "name": "Error Details",
+              "value": "```\n${{ env.error_logs }}\n```"
+            }'
           fi
           
           curl -H "Content-Type: application/json" -X POST ${{ secrets.DISCORD_WEBHOOK_URL }} -d '{
@@ -120,8 +127,7 @@ jobs:
                   "name": "Image",
                   "value": "${{ env.REGISTRY }}/${{ steps.image_name.outputs.image_name }}:${{ steps.version.outputs.version }}"
                 }
-                '"$ERROR_CONTENT"'
-              ],
-              "timestamp": "'"$(date -u +"%Y-%m-%dT%H:%M:%SZ")"'"
+                '"$ERROR_SECTION"'
+              ]
             }]
           }'
