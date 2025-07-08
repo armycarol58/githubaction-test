@@ -7,6 +7,7 @@ on:
 
 env:
   REGISTRY: ghcr.io
+  DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
 
 jobs:
   build-and-push-image:
@@ -54,58 +55,49 @@ jobs:
             ${{ env.REGISTRY }}/${{ steps.image_name.outputs.image_name }}:${{ steps.version.outputs.version }}
             ${{ env.REGISTRY }}/${{ steps.image_name.outputs.image_name }}:latest 
             
-      # URL 파싱하여 ID와 TOKEN 추출
-      - name: Extract Discord Webhook Info
-        id: discord
-        run: |
-          WEBHOOK_ID=$(echo $DISCORD_WEBHOOK_URL | cut -d'/' -f6)
-          WEBHOOK_TOKEN=$(echo $DISCORD_WEBHOOK_URL | cut -d'/' -f7)
-          echo "webhook_id=$WEBHOOK_ID" >> $GITHUB_OUTPUT
-          echo "webhook_token=$WEBHOOK_TOKEN" >> $GITHUB_OUTPUT
+# timestamp step 추가
+      - name: Get timestamp
+        id: timestamp
+        run: echo "timestamp=$(date -u +'%Y-%m-%dT%H:%M:%SZ')" >> $GITHUB_OUTPUT
 
-      # Discord로 성공 메시지 전송
-      - name: Discord notification - Success
-        if: success()
-        uses: appleboy/discord-action@master
-        with:
-          webhook_id: ${{ secrets.DISCORD_WEBHOOK_ID }}
-          webhook_token: ${{ secrets.DISCORD_WEBHOOK_TOKEN }}
-          color: "#43b581"
-          username: "GitHub Actions Bot"
-          message: |
-            🚀 **빌드 성공!**
-            
-            **Repository:** ${{ github.repository }}
-            **Branch:** ${{ github.ref_name }}
-            **Commit:** ${{ github.sha }}
-            **Author:** ${{ github.actor }}
-            **Build Time:** ${{ steps.timestamp.outputs.timestamp }}
-            
-            **Image:** `${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}:latest`
-            
-            **Commit Message:**
-            ```
-            ${{ github.event.head_commit.message }}
-            ```
-            
-      # Discord로 실패 메시지 전송
-      - name: Discord notification - Failure
-        if: failure()
-        uses: appleboy/discord-action@master
-        with:
-          webhook_id: ${{ secrets.DISCORD_WEBHOOK_ID }}
-          webhook_token: ${{ secrets.DISCORD_WEBHOOK_TOKEN }}
-          color: "#ff0000"
-          username: "GitHub Actions Bot"
-          message: |
-            ❌ **빌드 실패!**
-            
-            **Repository:** ${{ github.repository }}
-            **Branch:** ${{ github.ref_name }}
-            **Commit:** ${{ github.sha }}
-            **Author:** ${{ github.actor }}
-            **Build Time:** ${{ steps.timestamp.outputs.timestamp }}
-            
-            **Error Details:**
-            작업이 실패했습니다. GitHub Actions 로그를 확인해주세요.
-            ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+      # Discord 알림을 직접 curl로 보내는 방식으로 변경
+      - name: Send Discord Notification
+        if: always()
+        run: |
+          STATUS="${{ job.status }}"
+          COLOR=$( [ "$STATUS" == "success" ] && echo "3066993" || echo "15158332" )
+          EMOJI=$( [ "$STATUS" == "success" ] && echo "🚀" || echo "❌" )
+          
+          curl -H "Content-Type: application/json" -X POST ${{ secrets.DISCORD_WEBHOOK_URL }} -d '{
+            "embeds": [{
+              "title": "'"$EMOJI"' 빌드 '"$STATUS"'",
+              "color": '"$COLOR"',
+              "fields": [
+                {
+                  "name": "Repository",
+                  "value": "${{ github.repository }}",
+                  "inline": true
+                },
+                {
+                  "name": "Branch",
+                  "value": "${{ github.ref_name }}",
+                  "inline": true
+                },
+                {
+                  "name": "Commit",
+                  "value": "${{ github.sha }}",
+                  "inline": true
+                },
+                {
+                  "name": "Author",
+                  "value": "${{ github.actor }}",
+                  "inline": true
+                },
+                {
+                  "name": "Image",
+                  "value": "${{ env.REGISTRY }}/${{ steps.image_name.outputs.image_name }}:${{ steps.version.outputs.version }}"
+                }
+              ],
+              "timestamp": "${{ steps.timestamp.outputs.timestamp }}"
+            }]
+          }'
