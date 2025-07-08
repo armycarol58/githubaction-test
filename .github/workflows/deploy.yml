@@ -62,9 +62,9 @@ jobs:
       - name: Capture Docker build error log (on failure)
         if: failure()
         run: |
-          echo "⚠️ Rebuilding image to capture error log..."
+          echo "Rebuilding image to capture error log..."
           docker build --file Dockerfile . > raw_error.log 2>&1 || true
-          echo '::notice file=raw_error.log::Captured error log.'
+          head -n 50 raw_error.log > short_error.txt
 
       - name: Send Discord Notification
         if: always()
@@ -83,14 +83,14 @@ jobs:
             if [ "${{ steps.docker_build.outcome }}" != "success" ]; then
               ERROR_INFO+="Docker Build/Push Failed\n"
             fi
-            if [ -f raw_error.log ]; then
-              ERROR_CONTENT=$(head -n 50 raw_error.log | sed 's/"/\\"/g' | sed ':a;N;$!ba;s/\n/\\n/g')
-              ERROR_INFO+="\n---\n$ERROR_CONTENT"
+            if [ -f short_error.txt ]; then
+              RAW_LOG=$(cat short_error.txt | sed 's/"/\\"/g' | sed ':a;N;$!ba;s/\n/\\n/g')
+              ERROR_INFO+="\n---\n$RAW_LOG"
             fi
 
             ERROR_SECTION=', {
               "name": "Error Details",
-              "value": "```\n'"${ERROR_INFO}"'\n```"
+              "value": "```\n'"$ERROR_INFO"'\n```"
             }'
           fi
 
